@@ -2,6 +2,8 @@ package com.idat.pe.academic_service.service;
 
 import com.idat.pe.academic_service.client.UsuarioClient;
 import com.idat.pe.academic_service.dto.AsignaturaRequest;
+import com.idat.pe.academic_service.dto.AsignaturaResponse;
+import com.idat.pe.academic_service.dto.PonderacionResponse;
 import com.idat.pe.academic_service.entity.Asignatura;
 import com.idat.pe.academic_service.entity.Ponderacion;
 import com.idat.pe.academic_service.repository.AsignaturaRepository;
@@ -15,6 +17,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,11 +29,10 @@ public class AsignaturaService {
     private final HttpServletRequest request;
 
     @Transactional
-    public Asignatura crearAsignatura(AsignaturaRequest requestDto) {
+    public AsignaturaResponse crearAsignatura(AsignaturaRequest requestDto) {
         String token = authHeaderConBearer();
         Integer usuarioId = jwtService.extractUserId(token.substring(7));
         
-        // VALIDACIÓN: Verificar si el usuario existe en el auth_service vía Feign
         try {
             usuarioClient.obtenerUsuario(usuarioId, token);
         } catch (Exception e) {
@@ -43,7 +45,6 @@ public class AsignaturaService {
                 .build();
 
         List<BigDecimal> porcentajes = configurarPorcentajes(requestDto.getPonderaciones());
-        
         validarSumaCienPorCiento(porcentajes);
 
         List<Ponderacion> ponderaciones = new ArrayList<>();
@@ -57,7 +58,8 @@ public class AsignaturaService {
         }
         
         asignatura.setPonderaciones(ponderaciones);
-        return asignaturaRepository.save(asignatura);
+        Asignatura guardada = asignaturaRepository.save(asignatura);
+        return mapToResponse(guardada);
     }
 
     private List<BigDecimal> configurarPorcentajes(List<Double> input) {
@@ -69,23 +71,21 @@ public class AsignaturaService {
                     new BigDecimal("0.60")
             );
         }
-        return input.stream()
-                .map(String::valueOf)
-                .map(BigDecimal::new)
-                .toList();
+        return input.stream().map(String::valueOf).map(BigDecimal::new).toList();
     }
 
     private void validarSumaCienPorCiento(List<BigDecimal> porcentajes) {
-        BigDecimal suma = porcentajes.stream()
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-        
+        BigDecimal suma = porcentajes.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         if (suma.compareTo(BigDecimal.ONE) != 0) {
             throw new RuntimeException("La suma de las ponderaciones debe ser exactamente 1.00 (100%)");
         }
     }
 
-    public List<Asignatura> listarMisAsignaturas() {
-        return asignaturaRepository.findByUsuarioId(jwtService.extractUserId(authHeaderConBearer().substring(7)));
+    public List<AsignaturaResponse> listarMisAsignaturas() {
+        Integer usuarioId = jwtService.extractUserId(authHeaderConBearer().substring(7));
+        return asignaturaRepository.findByUsuarioId(usuarioId).stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 
     private String authHeaderConBearer() {
@@ -93,6 +93,21 @@ public class AsignaturaService {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader;
         }
-        throw new RuntimeException("Token no encontrado o inválido en el encabezado Authorization");
+        throw new RuntimeException("Token no encontrado o inválido");
+    }
+
+    private AsignaturaResponse mapToResponse(Asignatura a) {
+        return AsignaturaResponse.builder()
+                .id(a.getId())
+                .nombre(a.getNombre())
+                .usuarioId(a.getUsuarioId())
+                .ponderaciones(a.getPonderaciones().stream()
+                        .map(p -> PonderacionResponse.builder()
+                                .id(p.getId())
+                                .porcentaje(p.getPorcentaje())
+                                .orden(p.getOrden())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
     }
 }
