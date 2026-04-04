@@ -29,4 +29,7 @@ public class Ponderacion {
 
     @Column(nullable = false)
     private Integer orden;
+
+    @OneToOne(mappedBy = "ponderacion", fetch = FetchType.LAZY)
+    private Evaluacion evaluacion;
 }
