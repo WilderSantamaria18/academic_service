@@ -1,6 +1,6 @@
 package com.idat.pe.academic_service.service;
 
-import com.idat.pe.academic_service.client.UsuarioClient;
+import com.idat.pe.academic_service.remote.client.UsuarioClient;
 import com.idat.pe.academic_service.dto.AsignaturaRequest;
 import com.idat.pe.academic_service.dto.AsignaturaResponse;
 import com.idat.pe.academic_service.dto.PonderacionResponse;

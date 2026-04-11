@@ -22,7 +22,9 @@ public class JwtService {
     }
 
     public Integer extractUserId(String token) {
-        return extractAllClaims(token).get("id", Integer.class);
+        Object id = extractAllClaims(token).get("id");
+        if (id == null) return null;
+        return Integer.parseInt(id.toString());
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {

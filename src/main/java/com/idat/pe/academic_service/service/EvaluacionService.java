@@ -34,7 +34,7 @@ public class EvaluacionService {
                 .orElseThrow(() -> new RuntimeException("Asignatura no encontrada"));
         
         if (!asignatura.getUsuarioId().equals(usuarioId)) {
-            throw new RuntimeException("No tienes permiso para registrar notas en esta asignatura");
+            throw new RuntimeException("No tienes permiso. Dueño asignatura: " + asignatura.getUsuarioId() + ", Usuario en Token: " + usuarioId);
         }
 
         // 2. Validar Ponderación y Relación con Asignatura
