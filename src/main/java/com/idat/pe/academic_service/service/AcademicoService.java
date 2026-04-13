@@ -2,7 +2,6 @@ package com.idat.pe.academic_service.service;
 
 import com.idat.pe.academic_service.dto.DetalleResumenDTO;
 import com.idat.pe.academic_service.dto.ResumenAcademicoResponse;
-import com.idat.pe.academic_service.dto.SimulacionRequest;
 import com.idat.pe.academic_service.entity.Asignatura;
 import com.idat.pe.academic_service.entity.Ponderacion;
 import com.idat.pe.academic_service.repository.AsignaturaRepository;
@@ -14,8 +13,6 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -57,17 +54,17 @@ public class AcademicoService {
         String mensaje = "Sigue esforzándote";
 
         if (porcentajeRestante > 0) {
-            notaNecesaria = (13.0 - promedioActual) / porcentajeRestante;
+            notaNecesaria = (12.5 - promedioActual) / porcentajeRestante; // Se necesita 12.5 para redondear a 13
             if (notaNecesaria <= 0) {
                 mensaje = "¡Felicidades! Ya aprobaste la asignatura.";
                 notaNecesaria = 0.0;
             } else if (notaNecesaria > 20) {
                 mensaje = "Situación crítica: Necesitas más de 20 para aprobar.";
             } else {
-                mensaje = String.format("Necesitas un promedio de %.2f en lo que falta para aprobar con 13.", notaNecesaria);
+                mensaje = String.format("Necesitas un promedio de %.2f en lo que falta para aprobar con 13 (12.5 mínimo).", notaNecesaria);
             }
         } else {
-            mensaje = (promedioActual >= 13) ? "Asignatura Aprobada" : "Asignatura Desaprobada";
+            mensaje = (promedioActual >= 12.5) ? "Asignatura Aprobada" : "Asignatura Desaprobada";
         }
 
         return ResumenAcademicoResponse.builder()
@@ -79,48 +76,83 @@ public class AcademicoService {
                 .build();
     }
 
-    public ResumenAcademicoResponse simularNotas(Integer asignaturaId, SimulacionRequest requestDto) {
+    // Nuevo método: "Calculadora de Aprobación" automatizada
+    public ResumenAcademicoResponse calcularNotaFaltante(Integer asignaturaId) {
         Asignatura asignatura = validarPropiedad(asignaturaId);
         
-        // Mapa de ponderacionId -> nota simulada
-        Map<Integer, Integer> notasSimuladas = requestDto.getSimulaciones().stream()
-                .collect(Collectors.toMap(
-                        SimulacionRequest.ItemSimulacion::getPonderacionId,
-                        SimulacionRequest.ItemSimulacion::getNota
-                ));
+        double promedioActualAcumulado = 0.0;
+        double porcentajeCubierto = 0.0;
+        int cantidadNotasRegistradas = 0;
 
-        List<DetalleResumenDTO> detalles = new ArrayList<>();
-        double promedioProyectado = 0.0;
-
+        // 1. Leer automáticamente todas las notas registradas y sus porcentajes
         for (Ponderacion p : asignatura.getPonderaciones()) {
-            // Prioridad: 1. Nota simulada, 2. Nota real, 3. Cero
-            Integer nota = notasSimuladas.get(p.getId());
-            if (nota == null && p.getEvaluacion() != null) {
-                nota = p.getEvaluacion().getNota();
+            if (p.getEvaluacion() != null && p.getEvaluacion().getNota() != null) {
+                double porcentajeVal = p.getPorcentaje().doubleValue();
+                promedioActualAcumulado += (p.getEvaluacion().getNota() * porcentajeVal);
+                porcentajeCubierto += porcentajeVal;
+                cantidadNotasRegistradas++;
             }
-            
-            double porcentajeVal = p.getPorcentaje().doubleValue();
-            double contribucion = (nota != null) ? nota * porcentajeVal : 0.0;
-
-            detalles.add(DetalleResumenDTO.builder()
-                    .ponderacionId(p.getId())
-                    .orden(p.getOrden())
-                    .porcentaje(p.getPorcentaje())
-                    .nota(nota)
-                    .contribucionAlPromedio(contribucion)
-                    .build());
-            
-            promedioProyectado += contribucion;
         }
 
-        String mensaje = (promedioProyectado >= 13) 
-                ? "Con estas notas APROBARÍAS la asignatura." 
-                : "Aún con estas notas, no alcanzarías el 13 aprobatorio.";
+        // 2. Analizar lo que falta
+        double porcentajeRestanteDecimal = 1.0 - porcentajeCubierto;
+        int porcentajeRestanteEntero = (int) Math.round(porcentajeRestanteDecimal * 100);
+        String porcentajeRestanteStr = porcentajeRestanteEntero + "%";
+        
+        String estado;
+        String mensaje;
+        Double notaNecesariaParaAprobar = null;
+
+        // 3. NUEVA REGLA: Si el alumno no tiene al menos 3 notas, la proyección no es realista.
+        if (cantidadNotasRegistradas < 3) {
+            estado = "INFO";
+            mensaje = "Para una proyección precisa, necesitas registrar al menos 3 notas de la asignatura '" + asignatura.getNombre() + "'. ¡Sigue esforzándote!";
+            return ResumenAcademicoResponse.builder()
+                    .nombreAsignatura(asignatura.getNombre())
+                    .promedioActual(Math.round(promedioActualAcumulado * 100.0) / 100.0)
+                    .porcentajeRestante(porcentajeRestanteStr)
+                    .estado(estado)
+                    .mensajeInformativo(mensaje)
+                    .build();
+        }
+
+        // 4. La Matemática (Solo se ejecuta si tiene 3 o más notas)
+        // Ecuación: PromedioActual + (NotaNecesaria * PorcentajeRestante) = 12.5
+        // Despeje: NotaNecesaria = (12.5 - PromedioActual) / PorcentajeRestante
+
+        if (porcentajeRestanteDecimal > 0.001) { // Aún faltan notas por subir
+            estado = "PENDIENTE";
+            notaNecesariaParaAprobar = (12.5 - promedioActualAcumulado) / porcentajeRestanteDecimal;
+            
+            // Redondear a 2 decimales para limpieza
+            notaNecesariaParaAprobar = Math.round(notaNecesariaParaAprobar * 100.0) / 100.0;
+
+            if (notaNecesariaParaAprobar <= 0) {
+                estado = "APROBADA (Proyectado)";
+                mensaje = "¡Imparable! Con las notas que ya tienes, tienes tu curso aprobado asegurado aunque saques 0 en lo que falta.";
+                notaNecesariaParaAprobar = 0.0;
+            } else if (notaNecesariaParaAprobar > 20) {
+                estado = "CRÍTICO";
+                mensaje = "Lamentablemente, incluso sacando 20 en todo lo que falta, no alcanzarás el 12.5 mínimo para aprobar. Necesitas " + notaNecesariaParaAprobar + ".";
+            } else {
+                mensaje = "Necesitas sacar un promedio mínimo de " + notaNecesariaParaAprobar + " en el " + porcentajeRestanteStr + " restante de tu curso para alcanzar el 12.5 aprobatorio.";
+            }
+        } else {
+            // El curso ya terminó al 100%
+            if (promedioActualAcumulado >= 12.5) {
+                estado = "APROBADA";
+                mensaje = "¡Felicidades! Has terminado y aprobado el curso con éxito.";
+            } else {
+                estado = "DESAPROBADA";
+                mensaje = "Has terminado el curso, pero no lograste la nota mínima aprobatoria.";
+            }
+        }
 
         return ResumenAcademicoResponse.builder()
                 .nombreAsignatura(asignatura.getNombre())
-                .promedioActual(Math.round(promedioProyectado * 100.0) / 100.0)
-                .detalles(detalles)
+                .promedioActual(Math.round(promedioActualAcumulado * 100.0) / 100.0)
+                .porcentajeRestante(porcentajeRestanteStr)
+                .estado(estado)
                 .mensajeInformativo(mensaje)
                 .build();
     }

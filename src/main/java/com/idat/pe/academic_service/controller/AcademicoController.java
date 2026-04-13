@@ -1,7 +1,6 @@
 package com.idat.pe.academic_service.controller;
 
 import com.idat.pe.academic_service.dto.ResumenAcademicoResponse;
-import com.idat.pe.academic_service.dto.SimulacionRequest;
 import com.idat.pe.academic_service.service.AcademicoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,10 +18,9 @@ public class AcademicoController {
         return ResponseEntity.ok(academicoService.obtenerResumen(id));
     }
 
-    @PostMapping("/{id}/simular")
-    public ResponseEntity<ResumenAcademicoResponse> simular(
-            @PathVariable Integer id,
-            @RequestBody SimulacionRequest request) {
-        return ResponseEntity.ok(academicoService.simularNotas(id, request));
+    // Nuevo endpoint GET para simular/calcular la nota restante de manera automática
+    @GetMapping("/{id}/cuanto-me-falta")
+    public ResponseEntity<ResumenAcademicoResponse> cuantoMeFalta(@PathVariable Integer id) {
+        return ResponseEntity.ok(academicoService.calcularNotaFaltante(id));
     }
 }
