@@ -18,7 +18,7 @@ public class AcademicoController {
         return ResponseEntity.ok(academicoService.obtenerResumen(id));
     }
 
-    // Nuevo endpoint GET para simular/calcular la nota restante de manera automática
+
     @GetMapping("/{id}/cuanto-me-falta")
     public ResponseEntity<ResumenAcademicoResponse> cuantoMeFalta(@PathVariable Integer id) {
         return ResponseEntity.ok(academicoService.calcularNotaFaltante(id));
