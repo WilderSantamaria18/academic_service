@@ -24,6 +24,7 @@ public class AcademicoService {
     private final AsignaturaRepository asignaturaRepository;
     private final JwtService jwtService;
     private final HttpServletRequest request;
+    private final com.idat.pe.academic_service.remote.client.UsuarioClient usuarioClient;
 
     public ResumenAcademicoResponse obtenerResumen(Integer asignaturaId) {
         Asignatura asignatura = validarPropiedad(asignaturaId);
@@ -127,6 +128,13 @@ public class AcademicoService {
     private Asignatura validarPropiedad(Integer asignaturaId) {
         String token = request.getHeader("Authorization");
         Integer usuarioId = jwtService.extractUserId(token.substring(7));
+
+        // Validar usuario contra auth-service usando Feign
+        try {
+            usuarioClient.obtenerUsuario(usuarioId, token);
+        } catch (Exception e) {
+            throw new RuntimeException("Usuario no encontrado o error de comunicación con auth_service");
+        }
 
         Asignatura asignatura = asignaturaRepository.findById(asignaturaId)
                 .orElseThrow(() -> new RuntimeException("Asignatura no encontrada"));
