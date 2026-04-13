@@ -51,20 +51,12 @@ public class AcademicoService {
 
         double porcentajeRestante = 1.0 - porcentajeCubierto;
         double notaNecesaria = 0.0;
-        String mensaje = "Sigue esforzándote";
 
         if (porcentajeRestante > 0) {
             notaNecesaria = (12.5 - promedioActual) / porcentajeRestante; // Se necesita 12.5 para redondear a 13
             if (notaNecesaria <= 0) {
-                mensaje = "¡Felicidades! Ya aprobaste la asignatura.";
                 notaNecesaria = 0.0;
-            } else if (notaNecesaria > 20) {
-                mensaje = "Situación crítica: Necesitas más de 20 para aprobar.";
-            } else {
-                mensaje = String.format("Necesitas un promedio de %.2f en lo que falta para aprobar con 13 (12.5 mínimo).", notaNecesaria);
             }
-        } else {
-            mensaje = (promedioActual >= 12.5) ? "Asignatura Aprobada" : "Asignatura Desaprobada";
         }
 
         return ResumenAcademicoResponse.builder()
@@ -72,7 +64,6 @@ public class AcademicoService {
                 .promedioActual(Math.round(promedioActual * 100.0) / 100.0)
                 .notaNecesariaRestante(Math.round(notaNecesaria * 100.0) / 100.0)
                 .detalles(detalles)
-                .mensajeInformativo(mensaje)
                 .build();
     }
 

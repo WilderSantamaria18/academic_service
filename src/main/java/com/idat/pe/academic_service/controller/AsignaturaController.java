@@ -27,4 +27,15 @@ public class AsignaturaController {
     public ResponseEntity<List<AsignaturaResponse>> listar() {
         return ResponseEntity.ok(asignaturaService.listarMisAsignaturas());
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<AsignaturaResponse> actualizar(@PathVariable Integer id, @Valid @RequestBody AsignaturaRequest request) {
+        return ResponseEntity.ok(asignaturaService.actualizarAsignatura(id, request));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        asignaturaService.eliminarAsignatura(id);
+        return ResponseEntity.noContent().build();
+    }
 }

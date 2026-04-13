@@ -88,6 +88,63 @@ public class AsignaturaService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional
+    public AsignaturaResponse actualizarAsignatura(Integer id, AsignaturaRequest requestDto) {
+        Asignatura asignatura = asignaturaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Asignatura no encontrada"));
+
+        Integer usuarioId = jwtService.extractUserId(authHeaderConBearer().substring(7));
+        if (!asignatura.getUsuarioId().equals(usuarioId)) {
+            throw new RuntimeException("No tiene permisos para actualizar esta asignatura");
+        }
+
+        asignatura.setNombre(requestDto.getNombre());
+
+        if (requestDto.getPonderaciones() != null && !requestDto.getPonderaciones().isEmpty()) {
+            List<BigDecimal> porcentajes = configurarPorcentajes(requestDto.getPonderaciones());
+            validarSumaCienPorCiento(porcentajes);
+
+            List<Ponderacion> actuales = asignatura.getPonderaciones();
+
+            // Si la cantidad de ponderaciones es la misma, actualizamos los valores existentes
+            // Esto evita errores de 'Duplicate entry' y mantiene la relación con Evaluacion
+            if (actuales.size() == porcentajes.size()) {
+                for (int i = 0; i < actuales.size(); i++) {
+                    actuales.get(i).setPorcentaje(porcentajes.get(i));
+                }
+            } else {
+                // Solo si la cantidad cambia, limpiamos y recreamos (caso poco probable)
+                actuales.clear();
+                asignaturaRepository.saveAndFlush(asignatura);
+
+                for (int i = 0; i < porcentajes.size(); i++) {
+                    Ponderacion p = Ponderacion.builder()
+                            .asignatura(asignatura)
+                            .porcentaje(porcentajes.get(i))
+                            .orden(i + 1)
+                            .build();
+                    actuales.add(p);
+                }
+            }
+        }
+
+        Asignatura actualizada = asignaturaRepository.save(asignatura);
+        return mapToResponse(actualizada);
+    }
+
+    @Transactional
+    public void eliminarAsignatura(Integer id) {
+        Asignatura asignatura = asignaturaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Asignatura no encontrada"));
+
+        Integer usuarioId = jwtService.extractUserId(authHeaderConBearer().substring(7));
+        if (!asignatura.getUsuarioId().equals(usuarioId)) {
+            throw new RuntimeException("No tiene permisos para eliminar esta asignatura");
+        }
+
+        asignaturaRepository.delete(asignatura);
+    }
+
     private String authHeaderConBearer() {
         String authHeader = request.getHeader("Authorization");
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
